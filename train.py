@@ -18,8 +18,8 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
 # Set paths
-image_dir = "/Bureau/LaBRI_stage/u_net/train_data/images/"
-mask_dir = "/Bureau/LaBRI_stage/u_net/train_data/masks/"
+image_dir = "../path to/train_data/images/"
+mask_dir = "../path to/train_data/masks/"
 
 # List files
 image_files = sorted(os.listdir(image_dir))
