@@ -37,6 +37,9 @@ Install dependencies:
 ```bash
 python install_packages.py
 ```
+## 🔗 checkpoints (trained model weights)
+
+Download the trained model: [best_UNetDC_focal_model.pth](https://drive.google.com/file/d/1GqywfrT1-Pjfd10h86i38AGXFLWsWSyQ/view?usp=drive_link)
 
 ## 🚀 Running the Pipeline
 
@@ -63,6 +66,8 @@ python quantify_droplets_batch.py \
 ## 🖼 Example
 
  example images showing before/after segmentation.
+ ![image17_pred_visual](https://github.com/user-attachments/assets/d45acdf1-3785-477e-a8e0-fb0e2ae52f11)
+
 
 
 ## 📬 Contact
