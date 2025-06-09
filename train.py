@@ -38,8 +38,8 @@ logger = logging.getLogger(__name__)
 # -------------------------------
 
 # Paths
-image_dir = "/gpfs/home/malani/u_net/train_data/images/"
-mask_dir = "/gpfs/home/malani/u_net/train_data/masks/"
+image_dir = "/..add your path/train_data/images/"
+mask_dir = "/..add your path/u_net/train_data/masks/"
 
 # List and filter image files
 image_files = sorted([
