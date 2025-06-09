@@ -21,11 +21,8 @@ LipidDropletSegmentation/
 │   ├── all_droplets.xlsx
 │   ├── size_histogram.png
 │   └── droplet_size_stats.csv
-│
-├── checkpoints/              # Folder for trained model weights (e.g., best_UNetDC_focal_model.pth)
-├── input_images/             # Your input microscopy images (.png, .tif, etc.)
-│
 ├── quantify_droplets_batch.py
+├── train.py
 ├── train_DC_focal.py
 ├── install_packages.py
 └── README.md
