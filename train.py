@@ -1,10 +1,12 @@
 # train.py
 # train.py
 from PIL import Image
+import logging
 import cv2
 import os
 import numpy as np
 import torch
+import torch.optim as optim
 from torch.utils.data import DataLoader
 from sklearn.metrics import accuracy_score
 import matplotlib
@@ -14,12 +16,22 @@ import seaborn as sns
 
 from data_loader import SegmentationDataset
 from model import UNet
-from metrics import combined_loss, dice_coef, calculate_metrics, plot_binary_confusion_matrix_with_metrics
+from metrics_DC import combined_loss, dice_coef, calculate_metrics, plot_binary_confusion_matrix_with_metrics
 
 from sklearn.model_selection import train_test_split
 from torchvision import transforms
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
+from torchsummary import summary
+
+
+
+# Setup Logging
+# -------------------------------
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
+# -------------------------------
 
 # -------------------------------
 # Data Loading and Preprocessing
@@ -62,6 +74,10 @@ train_images, train_masks = list(train_images), list(train_masks)
 val_images, val_masks = list(val_images), list(val_masks)
 test_images, test_masks = list(test_images), list(test_masks)
 
+assert set(train_images).isdisjoint(set(val_images)), "Data leakage detected between Train & Validation!"
+assert set(train_images).isdisjoint(set(test_images)), "Data leakage detected between Train & Test!"
+
+
 print(f"Training set: {len(train_images)} images")
 print(f"Validation set: {len(val_images)} images")
 print(f"Testing set: {len(test_images)} images")
@@ -84,9 +100,9 @@ val_dataset   = SegmentationDataset(image_dir, mask_dir, val_images,   val_masks
 test_dataset  = SegmentationDataset(image_dir, mask_dir, test_images,  test_masks,  transform=test_transform, return_filename=True ,return_orig_size=True)
 
 # Create dataloaders
-train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True,  num_workers=2, pin_memory=True)
-val_loader   = DataLoader(val_dataset,   batch_size=8, shuffle=False, num_workers=2, pin_memory=True)
-test_loader  = DataLoader(test_dataset,  batch_size=8, shuffle=False, num_workers=2, pin_memory=True)
+train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True,  num_workers=4, pin_memory=True)
+val_loader   = DataLoader(val_dataset,   batch_size=8, shuffle=False, num_workers=4, pin_memory=True)
+test_loader  = DataLoader(test_dataset,  batch_size=8, shuffle=False, num_workers=4, pin_memory=True)
 
 # -------------------------------
 # Model Initialization
@@ -95,6 +111,9 @@ test_loader  = DataLoader(test_dataset,  batch_size=8, shuffle=False, num_worker
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = UNet(in_channels=3, out_channels=1)
 model.to(device)
+logger.info("Model Summary:")
+summary(model, input_size=(3, 256, 256))
+
 #print(model)
 
 # -------------------------------
@@ -104,6 +123,9 @@ model.to(device)
 num_epochs = 50
 criterion = combined_loss
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10)
+scaler = torch.cuda.amp.GradScaler()  # Mixed precision
+
 
 best_dice = 0.0
 patience = 10
@@ -236,50 +258,7 @@ for epoch in range(num_epochs):
             print("Early stopping!")
             break
 
-
-
-""""  
-    with torch.no_grad():
-        for images, masks  in  val_loader:
-            images, masks = images.to(device), masks.to(device)
-            outputs = model(images)
-            loss = criterion(outputs, masks)
-            val_loss += loss.item()
-            
-            predicted_masks = (outputs > 0.5).float()
-            val_dice_sum += dice_coef(masks, predicted_masks).item()
-            
-            y_true_flat = masks.view(-1).cpu().numpy()
-            y_pred_flat = predicted_masks.view(-1).cpu().numpy()
-            val_correct += (y_true_flat == y_pred_flat).sum()
-            val_total += len(y_true_flat)
-
-    val_loss /= len(val_loader)
-    val_dice_avg = val_dice_sum / len(val_loader)
-    val_accuracy = val_correct / val_total
-
-    val_losses.append(val_loss)
-    val_accuracies.append(val_accuracy)
-    val_dices.append(val_dice_avg)
-
-    print(f"Epoch {epoch+1}/{num_epochs} | "
-          f"Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, "
-          f"Train Dice: {train_dice_avg:.4f}, Val Dice: {val_dice_avg:.4f}")
-    print(f"Train Acc: {train_accuracy:.4f}, Val Acc: {val_accuracy:.4f}")
-    print("-------------------------------------------------------")
-    
-    # Early Stopping
-    if val_dice_avg > best_dice:
-        best_dice = val_dice_avg
-        patience_counter = 0
-        torch.save(model.state_dict(), "best_unet_model2.pth")
-        print("Model saved!")
-    else:
-        patience_counter += 1
-        if patience_counter >= patience:
-            print("Early stopping!")
-            break
-
+"""
 # -------------------------------
 # Final Testing + Visualization
 # -------------------------------
@@ -297,7 +276,7 @@ all_y_true = []
 all_y_pred = []
 
 with torch.no_grad():
-    for images, masks, mask_filenames in test_loader:
+    for images, masks,orig_siz, mask_filenames in test_loader:
         images, masks = images.to(device), masks.to(device)
         outputs = model(images)
         predicted_masks = (outputs > 0.5).float().cpu().numpy()
@@ -369,7 +348,7 @@ output_dir = "predicted_masks_test"
 os.makedirs(output_dir, exist_ok=True)
 
 with torch.no_grad():
-    for batch_idx, (images, masks, mask_filenames) in enumerate(test_loader):
+    for batch_idx, (images, masks,orig_siz, mask_filenames) in enumerate(test_loader):
         images = images.to(device)
         outputs = model(images)
         predicted_masks = (outputs > 0.5).float().cpu().numpy()

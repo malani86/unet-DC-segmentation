@@ -31,7 +31,7 @@ class SegmentationDataset(Dataset):
         self.mask_list = mask_list
         self.transform = transform
         # Resize images and masks to 256x256 using Albumentations
-        self.resize = A.Resize(height=256, width=256)
+        self.resize = A.Resize(height=512, width=512)
         self.return_filename = return_filename
         self.return_orig_size = return_orig_size
 
