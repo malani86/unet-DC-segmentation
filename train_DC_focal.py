@@ -22,7 +22,14 @@ from sklearn.model_selection import train_test_split
 from torchvision import transforms
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
-from torchsummary import summary
+
+try:
+    from torchsummary import summary
+except ImportError:  # pragma: no cover - optional dependency
+    summary = None
+    logging.getLogger(__name__).warning(
+        "torchsummary is not installed. Model summary will be skipped.")
+
 
 
 
