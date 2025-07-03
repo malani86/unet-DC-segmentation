@@ -14,9 +14,9 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
 from PIL import Image
-from data_loader import SegmentationDataset
-from model_2 import UNetDC
-from metrics_DC import combined_loss, dice_coef, calculate_metrics, plot_binary_confusion_matrix_with_metrics, focal_dice_loss
+from utils.data_loader import SegmentationDataset
+from models.model_2 import UNetDC
+from utils.metrics_DC import combined_loss, dice_coef, calculate_metrics, plot_binary_confusion_matrix_with_metrics, focal_dice_loss
 
 from sklearn.model_selection import train_test_split
 from torchvision import transforms
