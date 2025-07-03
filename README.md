@@ -44,7 +44,9 @@ To install all packages using `pip`, you can also run:
 ```bash
 pip install -r requirements.txt
 ```
-
+Tkinter is bundled with standard Python. On Linux you may need to install the
+`python3-tk` OS package. On Windows, make sure the Python installer includes
+"tcl/tk and IDLE"
 
 ## 🔗 checkpoints (trained model weights)
 
