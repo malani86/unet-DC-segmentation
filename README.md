@@ -37,6 +37,15 @@ Install dependencies:
 ```bash
 python install_packages.py
 ```
+
+
+To install all packages using `pip`, you can also run:
+
+```bash
+pip install -r requirements.txt
+```
+
+
 ## 🔗 checkpoints (trained model weights)
 
 Download the trained model: [best_UNetDC_focal_model.pth](https://drive.google.com/file/d/1GqywfrT1-Pjfd10h86i38AGXFLWsWSyQ/view?usp=drive_link)
@@ -67,6 +76,18 @@ python quantify_droplets_batch.py \
 
  example images showing before/after segmentation.
  ![image17_pred_visual](https://github.com/user-attachments/assets/d45acdf1-3785-477e-a8e0-fb0e2ae52f11)
+
+## 📦 Packaging the GUI
+
+If you have a `gui.py` script for a user interface, you can create a single-file
+executable using [PyInstaller](https://pyinstaller.org/):
+
+```bash
+pyinstaller --onefile gui.py
+```
+
+After a successful build, the Windows executable will be available at
+`dist/gui.exe` and can be distributed to end users.
 
 
 
