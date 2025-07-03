@@ -7,6 +7,7 @@ required_packages = [
     "pillow",
     "torch>=1.7",
     "torchvision",
+    "torchsummary",
     "albumentations",
     "matplotlib",
     "seaborn",
