@@ -86,8 +86,7 @@ executable using [PyInstaller](https://pyinstaller.org/):
 pyinstaller --onefile gui.py
 ```
 
-After a successful build, the Windows executable will be available at
-`dist/gui.exe` and can be distributed to end users.
+
 
 
 
