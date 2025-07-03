@@ -85,6 +85,29 @@ executable using [PyInstaller](https://pyinstaller.org/):
 ```bash
 pyinstaller --onefile gui.py
 ```
+## 🖥️ Graphical Interface
+
+Launch the optional GUI with:
+
+```bash
+python gui.py
+```
+
+Select an input directory and press **Run** to execute the segmentation.
+Results appear as overlay previews like the one below.
+
+![GUI screenshot](outputs/overlays/image17_overlay.png)
+
+### Building a Windows executable
+
+To create a standalone Windows binary using [PyInstaller](https://www.pyinstaller.org/):
+
+```bash
+pip install pyinstaller
+pyinstaller --onefile gui.py
+```
+
+The resulting `dist/gui.exe` can be run on systems without Python installed.
 
 
 
