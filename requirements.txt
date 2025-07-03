@@ -1,0 +1,14 @@
+numpy
+opencv-python
+pillow
+torch>=1.7
+torchvision
+albumentations
+matplotlib
+seaborn
+scikit-image
+scikit-learn
+pandas
+tqdm
+xlsxwriter
+pyinstaller
