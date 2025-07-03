@@ -23,8 +23,8 @@ import matplotlib.pyplot as plt
 import torch
 from PIL import Image
 
-from model_2 import UNetDC
-from data_loader import rolling_ball_correction_rgb
+from models.model_2 import UNetDC
+from utils.data_loader import rolling_ball_correction_rgb
 
 DEVICE   = "cuda" if torch.cuda.is_available() else "cpu"
 IMG_SIZE = 512  # matches A.Resize in training
