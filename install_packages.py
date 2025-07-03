@@ -14,7 +14,8 @@ required_packages = [
     "scikit-learn",
     "pandas",
     "tqdm",
-    "xlsxwriter"
+    "xlsxwriter",
+    "pyinstaller"
 ]
 
 def install(package):
