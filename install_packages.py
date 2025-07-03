@@ -15,7 +15,8 @@ required_packages = [
     "pandas",
     "tqdm",
     "xlsxwriter",
-    "pyinstaller"
+    "pyinstaller",
+     "tkinter"
 ]
 
 def install(package):
