@@ -44,6 +44,7 @@ To install all packages using `pip`, you can also run:
 ```bash
 pip install -r requirements.txt
 ```
+This includes the optional [PySide6](https://doc.qt.io/qtforpython-6/) dependency for the Qt-based GUI.
 Tkinter is bundled with standard Python. On Linux you may need to install the
 `python3-tk` OS package. On Windows, make sure the Python installer includes
 "tcl/tk and IDLE"
@@ -99,6 +100,16 @@ Select an input directory and press **Run** to execute the segmentation.
 Results appear as overlay previews like the one below.
 
 ![GUI screenshot](outputs/overlays/image17_overlay.png)
+
+### PySide6 interface
+
+An alternative Qt-based interface is available:
+
+```bash
+python gui_qt.py
+```
+
+This entry point provides the same configuration fields with a responsive UI powered by PySide6.
 
 ### Building a Windows executable
 
