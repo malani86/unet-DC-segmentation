@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
-from typing import Callable, List
+from pathlib import Path
+from typing import Callable, Sequence
 
 from PySide6.QtCore import QObject, Signal, Slot, QThread
 from PySide6.QtWidgets import (
@@ -32,15 +32,21 @@ class ProcessWorker(QThread):
     succeeded = Signal()
     failed = Signal(str)
 
-    def __init__(self, args: List[str], parent: QObject | None = None) -> None:
+    def __init__(self, args: Sequence[str], parent: QObject | None = None) -> None:
         super().__init__(parent)
-        self._args = args
+        self._args = list(args)
 
     def run(self) -> None:  # type: ignore[override]
         try:
-            subprocess.run(self._args, check=True)
+            subprocess.run(
+                self._args,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
         except subprocess.CalledProcessError as exc:  # pragma: no cover - GUI flow
-            self.failed.emit(str(exc))
+            message = exc.stderr.strip() or exc.stdout.strip() or str(exc)
+            self.failed.emit(message)
         except Exception as exc:  # pragma: no cover - GUI flow
             self.failed.emit(str(exc))
         else:  # pragma: no cover - GUI flow
@@ -67,6 +73,7 @@ class MainWindow(QDialog):
         self.prob_spin = QDoubleSpinBox()
         self.prob_spin.setRange(0.0, 1.0)
         self.prob_spin.setSingleStep(0.01)
+        self.prob_spin.setDecimals(3)
         self.prob_spin.setValue(0.3)
 
         self.min_area_spin = QSpinBox()
@@ -76,14 +83,15 @@ class MainWindow(QDialog):
         self.px_spin = QDoubleSpinBox()
         self.px_spin.setRange(0.0, 10_000.0)
         self.px_spin.setSingleStep(0.1)
+        self.px_spin.setDecimals(3)
         self.px_spin.setValue(0.0)
 
         self.save_check = QCheckBox("Save overlays")
 
         self.progress_bar = QProgressBar()
-        self.progress_bar.setRange(0, 1)
-        self.progress_bar.setValue(0)
+        self.progress_bar.setRange(0, 0)
         self.progress_bar.setTextVisible(False)
+        self.progress_bar.setVisible(False)
 
         self.run_button = QPushButton("Run")
 
@@ -139,24 +147,52 @@ class MainWindow(QDialog):
         if self._worker is not None:
             return
 
+        try:
+            args = self._build_command()
+        except ValueError as exc:
+            QMessageBox.critical(self, "Error", str(exc))
+            return
+
+        self._toggle_running(True)
+
+        self._worker = ProcessWorker(args, self)
+        self._worker.succeeded.connect(self._on_run_succeeded)
+        self._worker.failed.connect(self._on_run_failed)
+        self._worker.finished.connect(self._cleanup_worker)
+        self._worker.start()
+
+    def _build_command(self) -> Sequence[str]:
         img_dir = self.img_dir_edit.text().strip()
         ckpt_path = self.ckpt_edit.text().strip()
         out_dir = self.out_dir_edit.text().strip()
 
         if not img_dir or not ckpt_path or not out_dir:
-            QMessageBox.critical(self, "Error", "Please fill in all required fields")
-            return
+            raise ValueError("Please fill in all required fields")
 
-        script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quantify_droplets_batch.py")
+        img_dir_path = Path(img_dir)
+        if not img_dir_path.is_dir():
+            raise ValueError("Image directory does not exist")
+
+        ckpt_path_obj = Path(ckpt_path)
+        if not ckpt_path_obj.is_file():
+            raise ValueError("Checkpoint file does not exist")
+
+        out_dir_path = Path(out_dir)
+        out_dir_path.mkdir(parents=True, exist_ok=True)
+
+        script_path = Path(__file__).resolve().with_name("quantify_droplets_batch.py")
+        if not script_path.exists():
+            raise ValueError("quantify_droplets_batch.py was not found next to gui_qt.py")
+
         args = [
             sys.executable,
-            script_path,
+            str(script_path),
             "--img_dir",
-            img_dir,
+            str(img_dir_path),
             "--ckpt_path",
-            ckpt_path,
+            str(ckpt_path_obj),
             "--out_dir",
-            out_dir,
+            str(out_dir_path),
             "--batch",
             str(self.batch_spin.value()),
             "--prob_thresh",
@@ -172,20 +208,27 @@ class MainWindow(QDialog):
         if self.save_check.isChecked():
             args.append("--save_overlays")
 
-        self.run_button.setEnabled(False)
-        self.progress_bar.setRange(0, 0)
+        return args
 
-        self._worker = ProcessWorker(args, self)
-        self._worker.succeeded.connect(self._on_run_succeeded)
-        self._worker.failed.connect(self._on_run_failed)
-        self._worker.finished.connect(self._cleanup_worker)
-        self._worker.start()
+    def _toggle_running(self, running: bool) -> None:
+        for widget in (
+            self.img_dir_edit,
+            self.ckpt_edit,
+            self.out_dir_edit,
+            self.batch_spin,
+            self.prob_spin,
+            self.min_area_spin,
+            self.px_spin,
+            self.save_check,
+        ):
+            widget.setEnabled(not running)
+
+        self.run_button.setEnabled(not running)
+        self.progress_bar.setVisible(running)
 
     @Slot()
     def _cleanup_worker(self) -> None:
-        self.progress_bar.setRange(0, 1)
-        self.progress_bar.setValue(0)
-        self.run_button.setEnabled(True)
+        self._toggle_running(False)
         self._worker = None
 
     @Slot()
