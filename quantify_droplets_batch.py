@@ -11,6 +11,11 @@ import pandas as pd
 from tqdm import tqdm
 from skimage.measure import label, regionprops_table
 
+from pathlib import Path
+import argparse
+import cv2
+
+
 import matplotlib
 matplotlib.use("Agg")              # headless servers
 import matplotlib.pyplot as plt
@@ -59,7 +64,7 @@ def run_batch(tensors, meta, model, mask_dir, overlay_dir,
         all_props.append(df)
 
 
-       per_image_row = {
+        per_image_row = {
             "filename": Path(fpath).name,
             "droplet_count": len(df),
             "total_area_px": df["area"].sum() if not df.empty else 0,
@@ -193,4 +198,4 @@ if __name__ == "__main__":
             plt.savefig(out_dir / "size_histogram.png", dpi=300)
             plt.close()
 
-    print("\n✓ All done. Outputs are in →", out_dir)
+    print("\n All done. Outputs are in ", out_dir)
