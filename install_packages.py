@@ -17,7 +17,7 @@ required_packages = [
     "tqdm",
     "xlsxwriter",
     "pyinstaller",
-    "PySide6"
+    "PySide6",
 ]
 
 def install(package):
@@ -30,5 +30,6 @@ if __name__ == "__main__":
             install(package)
         except Exception as e:
             print(f"Failed to install {package}: {e}")
+
 
 
