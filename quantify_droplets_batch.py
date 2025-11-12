@@ -58,10 +58,26 @@ def run_batch(tensors, meta, model, mask_dir, overlay_dir,
         df.to_csv(mask_dir.parent / f"{name}_droplets.csv", index=False)
         all_props.append(df)
 
-        per_image_rows.append({
+
+       per_image_row = {
             "filename": Path(fpath).name,
             "droplet_count": len(df),
-@@ -85,93 +85,113 @@ def quantify(bin_mask, min_area, px_per_um):
+            "total_area_px": df["area"].sum() if not df.empty else 0,
+        }
+        per_image_rows.append(per_image_row)
+        # overlay
+        if overlay_dir is not None:
+            img = cv2.imread(str(fpath))
+            if img is not None:
+                cnts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                cv2.drawContours(img, cnts, -1, (0, 255, 0), 2)
+                cv2.imwrite(str(overlay_dir / f"{name}_overlay.png"), img)
+
+def quantify(bin_mask, min_area, px_per_um):
+    lbl = label(bin_mask, connectivity=1)
+    for l in np.unique(lbl):
+        if l and (lbl == l).sum() < min_area:
+            lbl[lbl == l] = 0
     lbl = label(lbl, connectivity=1)
     if lbl.max() == 0:
         return pd.DataFrame()
@@ -72,6 +88,7 @@ def run_batch(tensors, meta, model, mask_dir, overlay_dir,
         df["area_sqmicron"]  = df["area"] / (px_per_um ** 2)
         df["eq_diam_micron"] = df["equivalent_diameter"] / px_per_um
     return df
+
 
 # ------------------------- main ---------------------------------------------
 
@@ -122,6 +139,7 @@ if __name__ == "__main__":
                      {".png", ".jpg", ".jpeg", ".tif", ".tiff"}])
 
     for img in tqdm(images, desc="Inference"):
+       
         t, osize = preprocess(img, args.background_radius)
         tensors.append(t)
         meta.append((str(img), osize))
