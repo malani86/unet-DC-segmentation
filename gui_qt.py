@@ -39,7 +39,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtWidgets import QHeaderView
 
 
-SCRIPT_NAME = "quantify_droplets_batch.py"
+SCRIPT_BASENAME = "quantify_droplets_batch"
 
 
 def _resolve_batch_script() -> Path:
@@ -64,14 +64,15 @@ def _resolve_batch_script() -> Path:
         search_roots = (frozen_dir, exe_path.parent, Path.cwd(), start.parent, *start.parents)
     else:
         search_roots = (exe_path.parent, Path.cwd(), start.parent, *start.parents)
-
+    # prefer the frozen .exe when bundled, otherwise the .py file
+    exe_name = SCRIPT_BASENAME + (".exe" if getattr(sys, "frozen", False) else ".py")
     candidates: list[Path] = []
     seen: set[Path] = set()
     for directory in search_roots:
         if directory in seen:
             continue
         seen.add(directory)
-        candidates.append(directory / SCRIPT_NAME)
+        candidates.append(directory / exe_name)
 
     for candidate in candidates:
         if candidate.is_file():
@@ -79,7 +80,7 @@ def _resolve_batch_script() -> Path:
 
     locations = "\n - ".join(str(path.parent) for path in candidates)
     raise FileNotFoundError(
-        "Could not locate quantify_droplets_batch.py. Looked in:\n - " + locations
+        f"Could not locate {exe_name}. Looked in:\n -  " + locations
     )
 
 
@@ -365,9 +366,10 @@ class MainWindow(QDialog):
 
         self._last_out_dir = out_dir_path
 
-        args = [
-            sys.executable,
-            str(script_path),
+        
+            # If running frozen, script_path is the .exe and should be called directly.
+            # If not frozen, script_path is a .py and we run it with the current python.
+        args = ([str(script_path)] if getattr(sys, "frozen", False) else [sys.executable, str(script_path)]) + [
             "--img_dir",
             str(img_dir_path),
             "--ckpt_path",
