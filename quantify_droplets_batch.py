@@ -157,6 +157,7 @@ if __name__ == "__main__":
                     "⚠️  Skipped Excel file; install 'xlsxwriter<3.1.0' or use Python ≥3.7 if you need .xlsx output."
                 )
 
+
         # choose size column
         size_col = "eq_diam_micron" if "eq_diam_micron" in combined.columns else "equivalent_diameter"
         stats = combined[size_col].describe()[["mean", "50%", "std"]].rename({"50%": "median"})
