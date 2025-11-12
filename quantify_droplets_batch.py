@@ -6,11 +6,6 @@
 # 4. Plot a global size‑distribution histogram and compute summary stats
 # --------------------------------------------------------------------
 
-import os
-import cv2
-import argparse
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -36,10 +31,12 @@ def load_model(ckpt):
     m.load_state_dict(torch.load(ckpt, map_location=DEVICE))
     return m.to(DEVICE).eval()
 
-def preprocess(path: Path):
+
+def preprocess(path: Path, background_radius: int):
     im = np.array(Image.open(path).convert("RGB"))
     oh, ow = im.shape[:2]
     im = rolling_ball_correction_rgb(im, 50)
+    im = rolling_ball_correction_rgb(im, background_radius)
     im = cv2.resize(im, (IMG_SIZE, IMG_SIZE), cv2.INTER_AREA)
     im = im.astype(np.float32) / 255.0
     return torch.from_numpy(im).permute(2, 0, 1), (oh, ow)
@@ -65,23 +62,7 @@ def run_batch(tensors, meta, model, mask_dir, overlay_dir,
         per_image_rows.append({
             "filename": Path(fpath).name,
             "droplet_count": len(df),
-            "total_area_px": df["area"].sum() if not df.empty else 0,
-        })
-
-        # overlay
-        if overlay_dir is not None:
-            img = cv2.imread(str(fpath))
-            if img is not None:
-                cnts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                cv2.drawContours(img, cnts, -1, (0, 255, 0), 2)
-                cv2.imwrite(str(overlay_dir / f"{name}_overlay.png"), img)
-
-
-def quantify(bin_mask, min_area, px_per_um):
-    lbl = label(bin_mask, connectivity=1)
-    for l in np.unique(lbl):
-        if l and (lbl == l).sum() < min_area:
-            lbl[lbl == l] = 0
+@@ -85,93 +85,113 @@ def quantify(bin_mask, min_area, px_per_um):
     lbl = label(lbl, connectivity=1)
     if lbl.max() == 0:
         return pd.DataFrame()
@@ -107,6 +88,22 @@ if __name__ == "__main__":
     p.add_argument("--px_per_micron", type=float,
                    help="pixels per micron for physical‑unit columns")
     p.add_argument("--save_overlays", action="store_true")
+    p.add_argument(
+        "--background_radius",
+        type=int,
+        default=50,
+        help="radius for rolling ball background correction",
+    )
+    p.add_argument(
+        "--skip_excel",
+        action="store_true",
+        help="skip generation of the Excel workbook",
+    )
+    p.add_argument(
+        "--skip_histogram",
+        action="store_true",
+        help="skip histogram plot generation",
+    )
     args = p.parse_args()
 
     in_dir  = Path(args.img_dir)
@@ -126,7 +123,8 @@ if __name__ == "__main__":
                      {".png", ".jpg", ".jpeg", ".tif", ".tiff"}])
 
     for img in tqdm(images, desc="Inference"):
-        t, osize = preprocess(img)
+        
+        t, osize = preprocess(img, args.background_radius)
         tensors.append(t)
         meta.append((str(img), osize))
         if len(tensors) == args.batch:
@@ -146,32 +144,36 @@ if __name__ == "__main__":
     if all_props:
         combined = pd.concat(all_props, ignore_index=True)
         combined.to_csv(out_dir / "all_droplets.csv", index=False)
-        # --- try to write Excel workbook (requires xlsxwriter ≥1.2 and Py≥3.7) ----
-        try:
-            import xlsxwriter  # noqa: F401  (just to trigger ImportError / AttributeError early)
-            with pd.ExcelWriter(out_dir / "all_droplets.xlsx", engine="xlsxwriter") as xw:
-                combined.to_excel(xw, index=False, sheet_name="droplets")
-                summary_df.to_excel(xw, index=False, sheet_name="per_image")
-        except (ImportError, AttributeError):
-            # fall back to plain CSV if xlsxwriter missing or too new for Py3.6
-            combined.to_csv(out_dir / "all_droplets_noexcel.csv", index=False)
-            print("⚠️  Skipped Excel file; install 'xlsxwriter<3.1.0' or use Python ≥3.7 if you need .xlsx output.")
-
+       
+        if not args.skip_excel:
+            # --- try to write Excel workbook (requires xlsxwriter ≥1.2 and Py≥3.7) ----
+            try:
+                import xlsxwriter  # noqa: F401  (trigger ImportError / AttributeError early)
+                with pd.ExcelWriter(out_dir / "all_droplets.xlsx", engine="xlsxwriter") as xw:
+                    combined.to_excel(xw, index=False, sheet_name="droplets")
+                    summary_df.to_excel(xw, index=False, sheet_name="per_image")
+            except (ImportError, AttributeError):
+                # fall back to plain CSV if xlsxwriter missing or too new for Py3.6
+                combined.to_csv(out_dir / "all_droplets_noexcel.csv", index=False)
+                print(
+                    "⚠️  Skipped Excel file; install 'xlsxwriter<3.1.0' or use Python ≥3.7 if you need .xlsx output."
+                )
 
         # choose size column
         size_col = "eq_diam_micron" if "eq_diam_micron" in combined.columns else "equivalent_diameter"
         stats = combined[size_col].describe()[["mean", "50%", "std"]].rename({"50%": "median"})
         stats.to_csv(out_dir / "droplet_size_stats.csv")
 
-        # histogram
-        plt.figure(figsize=(6,4))
-        plt.hist(combined[size_col], bins=40)
-        plt.xlabel("Diameter (µm)" if "micron" in size_col else "Diameter (pixels)")
-        plt.ylabel("Count")
-        plt.title("Droplet size distribution")
-        plt.tight_layout()
-        plt.savefig(out_dir / "size_histogram.png", dpi=300)
-        plt.close()
+       
+        if not args.skip_histogram:
+            # histogram
+            plt.figure(figsize=(6, 4))
+            plt.hist(combined[size_col], bins=40)
+            plt.xlabel("Diameter (µm)" if "micron" in size_col else "Diameter (pixels)")
+            plt.ylabel("Count")
+            plt.title("Droplet size distribution")
+            plt.tight_layout()
+            plt.savefig(out_dir / "size_histogram.png", dpi=300)
+            plt.close()
 
     print("\n✓ All done. Outputs are in →", out_dir)
-
