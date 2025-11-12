@@ -64,8 +64,12 @@ python quantify_droplets_batch.py \
   --prob_thresh 0.3 \
   --min_area 1 \
   --px_per_micron 5.0 \
+  --background_radius 50 \
   --save_overlays
 ```
+Flags such as `--skip_excel` and `--skip_histogram` are optional and let you
+disable the heavier reporting steps when you only need the CSV exports. Omit
+them (or leave the PySide6 checkboxes enabled) to retain the default behaviour.
 
 ## 📄 Output Description
 
@@ -109,7 +113,11 @@ An alternative Qt-based interface is available:
 python gui_qt.py
 ```
 
-This entry point provides the same configuration fields with a responsive UI powered by PySide6.
+This entry point provides the same configuration fields with a responsive UI powered by PySide6. The **Outputs** panel lets you
+toggle Excel and histogram generation, adjust the rolling-ball background radius, and review live subprocess logs while the
+indeterminate progress bar runs. When processing succeeds the window automatically previews the generated `size_histogram.png`
+and any overlay images (enable **Save overlays** to populate the gallery). Use the **Open output folder** button once processing
+completes to jump directly to the results.
 
 ### Building a Windows executable
 
