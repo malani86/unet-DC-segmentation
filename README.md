@@ -86,7 +86,7 @@ If you have a `gui.py` script for a user interface, you can create a single-file
 executable using [PyInstaller](https://pyinstaller.org/):
 
 ```bash
-pyinstaller --onefile gui.py
+pyinstaller --onefile gui_qt.py
 ```
 ## 🖥️ Graphical Interface
 
@@ -117,7 +117,7 @@ To create a standalone Windows binary using [PyInstaller](https://www.pyinstalle
 
 ```bash
 pip install pyinstaller
-pyinstaller --onefile gui.py
+pyinstaller --onefile gui_qt.py
 ```
 
 The resulting `dist/gui.exe` can be run on systems without Python installed.
