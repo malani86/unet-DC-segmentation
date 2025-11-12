@@ -35,7 +35,6 @@ def load_model(ckpt):
 def preprocess(path: Path, background_radius: int):
     im = np.array(Image.open(path).convert("RGB"))
     oh, ow = im.shape[:2]
-    im = rolling_ball_correction_rgb(im, 50)
     im = rolling_ball_correction_rgb(im, background_radius)
     im = cv2.resize(im, (IMG_SIZE, IMG_SIZE), cv2.INTER_AREA)
     im = im.astype(np.float32) / 255.0
@@ -123,7 +122,6 @@ if __name__ == "__main__":
                      {".png", ".jpg", ".jpeg", ".tif", ".tiff"}])
 
     for img in tqdm(images, desc="Inference"):
-        
         t, osize = preprocess(img, args.background_radius)
         tensors.append(t)
         meta.append((str(img), osize))
