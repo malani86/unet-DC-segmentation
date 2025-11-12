@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import shlex
 import subprocess
 import sys
@@ -10,6 +11,7 @@ from typing import Callable, Sequence
 
 from PySide6.QtCore import QObject, Signal, Slot, QThread, QUrl, Qt
 from PySide6.QtGui import QDesktopServices, QPixmap
+
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -26,12 +28,47 @@ from PySide6.QtWidgets import (
     QPushButton,
     QProgressBar,
     QScrollArea,
+    QTableWidget,
+    QTableWidgetItem,
     QSpinBox,
     QDoubleSpinBox,
     QTabWidget,
     QVBoxLayout,
     QWidget,
 )
+from PySide6.QtWidgets import QHeaderView
+
+
+SCRIPT_NAME = "quantify_droplets_batch.py"
+
+
+def _resolve_batch_script() -> Path:
+    """Return the path to the batch quantification script.
+
+    The GUI normally lives alongside ``quantify_droplets_batch.py`` when the
+    repository is checked out. Users may, however, launch the interface from a
+    different working directory or bundle the GUI file separately. To make the
+    subprocess invocation more robust, probe a handful of likely locations
+    rather than assuming the script sits right next to ``gui_qt.py``.
+    """
+
+    start = Path(__file__).resolve()
+    candidates: list[Path] = []
+    seen: set[Path] = set()
+    for directory in (start.parent, Path.cwd(), *start.parents):
+        if directory in seen:
+            continue
+        seen.add(directory)
+        candidates.append(directory / SCRIPT_NAME)
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+
+    locations = "\n - ".join(str(path.parent) for path in candidates)
+    raise FileNotFoundError(
+        "Could not locate quantify_droplets_batch.py. Looked in:\n - " + locations
+    )
 
 
 class ProcessWorker(QThread):
@@ -177,6 +214,34 @@ class MainWindow(QDialog):
         layout.addWidget(self.log_output)
 
     def _setup_visualization_tabs(self) -> None:
+        summary_widget = QWidget()
+        summary_layout = QVBoxLayout(summary_widget)
+        summary_layout.setContentsMargins(12, 12, 12, 12)
+        self.summary_message = QLabel(
+            "Summary tables will appear here after a successful run."
+        )
+        self.summary_message.setAlignment(Qt.AlignCenter)
+        self.summary_message.setWordWrap(True)
+        summary_layout.addWidget(self.summary_message)
+
+        self.summary_table = QTableWidget()
+        self.summary_table.horizontalHeader().setStretchLastSection(True)
+        self.summary_table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeToContents
+        )
+        self.summary_table.setVisible(False)
+        summary_layout.addWidget(self.summary_table)
+
+        self.stats_table = QTableWidget()
+        self.stats_table.horizontalHeader().setStretchLastSection(True)
+        self.stats_table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeToContents
+        )
+        self.stats_table.setVisible(False)
+        summary_layout.addWidget(self.stats_table)
+
+        self.visual_tabs.addTab(summary_widget, "Summary")
+
         histogram_container = QScrollArea()
         histogram_container.setWidgetResizable(True)
         histogram_widget = QWidget()
@@ -281,9 +346,10 @@ class MainWindow(QDialog):
         out_dir_path = Path(out_dir)
         out_dir_path.mkdir(parents=True, exist_ok=True)
 
-        script_path = Path(__file__).resolve().with_name("quantify_droplets_batch.py")
-        if not script_path.exists():
-            raise ValueError("quantify_droplets_batch.py was not found next to gui_qt.py")
+        try:
+            script_path = _resolve_batch_script()
+        except FileNotFoundError as exc:
+            raise ValueError(str(exc)) from exc
 
         self._last_out_dir = out_dir_path
 
@@ -370,6 +436,14 @@ class MainWindow(QDialog):
         self.log_output.appendPlainText(line)
 
     def _clear_visualizations(self) -> None:
+        self._reset_table(self.summary_table)
+        self._reset_table(self.stats_table)
+        self.summary_message.setText(
+            "Summary tables will appear here after a successful run."
+        )
+        self.summary_message.setVisible(True)
+        self.summary_table.setVisible(False)
+        self.stats_table.setVisible(False)
         self.histogram_label.setPixmap(QPixmap())
         self.histogram_label.setText("Histogram preview will appear after a successful run.")
         self.overlay_image_label.setPixmap(QPixmap())
@@ -382,8 +456,65 @@ class MainWindow(QDialog):
     def _update_visualizations(self) -> None:
         if self._last_out_dir is None:
             return
+        self._load_summary(self._last_out_dir)
         self._load_histogram(self._last_out_dir)
         self._load_overlays(self._last_out_dir)
+
+    def _load_summary(self, out_dir: Path) -> None:
+        summary_path = out_dir / "summary_per_image.csv"
+        stats_path = out_dir / "droplet_size_stats.csv"
+
+        summary_rows = self._read_csv(summary_path)
+        stats_rows = self._read_csv(stats_path)
+
+        if summary_rows:
+            headers = list(summary_rows[0].keys())
+            self._populate_table(self.summary_table, headers, summary_rows)
+            self.summary_table.setVisible(True)
+            self.summary_message.setVisible(False)
+        else:
+            self.summary_table.setVisible(False)
+
+        if stats_rows:
+            headers = list(stats_rows[0].keys())
+            self._populate_table(self.stats_table, headers, stats_rows)
+            self.stats_table.setVisible(True)
+        else:
+            self.stats_table.setVisible(False)
+            if not summary_rows:
+                self.summary_message.setText(
+                    "Summary files were not generated. Ensure the run completed successfully."
+                )
+
+    def _read_csv(self, path: Path) -> list[dict[str, str]]:
+        if not path.exists():
+            return []
+        try:
+            with path.open("r", newline="", encoding="utf-8") as handle:
+                reader = csv.DictReader(handle)
+                return [dict(row) for row in reader]
+        except Exception:
+            return []
+
+    def _reset_table(self, table: QTableWidget) -> None:
+        table.clear()
+        table.setRowCount(0)
+        table.setColumnCount(0)
+
+    def _populate_table(
+        self, table: QTableWidget, headers: list[str], rows: list[dict[str, str]]
+    ) -> None:
+        self._reset_table(table)
+        table.setColumnCount(len(headers))
+        table.setHorizontalHeaderLabels(headers)
+        table.setRowCount(len(rows))
+        for row_index, row in enumerate(rows):
+            for col_index, header in enumerate(headers):
+                value = row.get(header, "")
+                item = QTableWidgetItem(value)
+                item.setFlags(item.flags() ^ Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+        table.resizeColumnsToContents()
 
     def _load_histogram(self, out_dir: Path) -> None:
         hist_path = out_dir / "size_histogram.png"
