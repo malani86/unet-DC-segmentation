@@ -53,9 +53,21 @@ def _resolve_batch_script() -> Path:
     """
 
     start = Path(__file__).resolve()
+    exe_path = Path(sys.argv[0]).resolve()
+    frozen_dir = Path(getattr(sys, "_MEIPASS", "")) if getattr(sys, "frozen", False) else None
+
+    search_roots: tuple[Path, ...]
+    if frozen_dir and frozen_dir.exists():
+        # ``_MEIPASS`` is where PyInstaller extracts bundled files. When the GUI
+        # is frozen we prefer those assets first so users do not have to ship
+        # the batch script alongside the executable manually.
+        search_roots = (frozen_dir, exe_path.parent, Path.cwd(), start.parent, *start.parents)
+    else:
+        search_roots = (exe_path.parent, Path.cwd(), start.parent, *start.parents)
+
     candidates: list[Path] = []
     seen: set[Path] = set()
-    for directory in (start.parent, Path.cwd(), *start.parents):
+    for directory in search_roots:
         if directory in seen:
             continue
         seen.add(directory)
